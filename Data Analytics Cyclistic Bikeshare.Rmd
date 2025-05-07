@@ -1,0 +1,532 @@
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### **Cyclistic Bikeshare Analysis**
+#### **An optional project done as part of the Google Dta Analytics Certificate course.**
+
+#### **Preparing the Environment** 
+
+```{r}
+# Loading the tools needed for the analysis
+
+library(tidyverse) # For data manipulation and plotting
+library(readr) # For reading dataset into the environment
+library(dplyr)
+library(lubridate) # For handling dates and time
+library(janitor) # For cleaning column names
+library(ggplot2)
+library(scales)
+library(knitr)
+```
+
+
+### **2. Preparing The Data for Processing**
+
+Imported all datasets and renamed them for better workflow.
+
+```{r}
+
+# Import all Datasets
+
+df_202404_tripdata <- read_csv("Capstone_Project/RAW_Project_Files/202404-divvy-tripdata.csv")
+df_202405_tripdata <- read_csv("Capstone_Project/RAW_Project_Files/202405-divvy-tripdata.csv")
+df_202406_tripdata <- read_csv("Capstone_Project/RAW_Project_Files/202406-divvy-tripdata.csv")
+df_202407_tripdata <- read_csv("Capstone_Project/RAW_Project_Files/202407-divvy-tripdata.csv")
+df_202408_tripdata <- read_csv("Capstone_Project/RAW_Project_Files/202408-divvy-tripdata.csv")
+df_202409_tripdata <- read_csv("Capstone_Project/RAW_Project_Files/202409-divvy-tripdata.csv")
+df_202410_tripdata <- read_csv("Capstone_Project/RAW_Project_Files/202410-divvy-tripdata.csv")
+df_202411_tripdata <- read_csv("Capstone_Project/RAW_Project_Files/202411-divvy-tripdata.csv")
+df_202412_tripdata <- read_csv("Capstone_Project/RAW_Project_Files/202412-divvy-tripdata.csv")
+df_202501_tripdata <- read_csv("Capstone_Project/RAW_Project_Files/202501-divvy-tripdata.csv")
+df_202502_tripdata <- read_csv("Capstone_Project/RAW_Project_Files/202502-divvy-tripdata.csv")
+df_202503_tripdata <- read_csv("Capstone_Project/RAW_Project_Files/202503-divvy-tripdata.csv")
+
+
+```
+
+
+#### **Inspecting table structures**
+
+```{r}
+# Inspected structure and column names to find out if all the datasets have the same structure
+
+str(df_202404_tripdata)
+head(df_202404_tripdata)
+colnames(df_202404_tripdata)
+
+str(df_202405_tripdata)
+head(df_202405_tripdata)
+colnames(df_202405_tripdata)
+
+str(df_202406_tripdata)
+head(df_202406_tripdata)
+colnames(df_202406_tripdata)
+
+str(df_202407_tripdata)
+head(df_202407_tripdata)
+colnames(df_202407_tripdata)
+
+str(df_202408_tripdata)
+head(df_202408_tripdata)
+colnames(df_202408_tripdata)
+
+str(df_202409_tripdata)
+head(df_202409_tripdata)
+colnames(df_202409_tripdata)
+
+str(df_202410_tripdata)
+head(df_202410_tripdata)
+colnames(df_202410_tripdata)
+
+str(df_202411_tripdata)
+head(df_202411_tripdata)
+colnames(df_202411_tripdata)
+
+str(df_202412_tripdata)
+head(df_202412_tripdata)
+colnames(df_202412_tripdata)
+
+str(df_202501_tripdata)
+head(df_202501_tripdata)
+colnames(df_202501_tripdata)
+
+str(df_202502_tripdata)
+head(df_202502_tripdata)
+colnames(df_202502_tripdata)
+
+str(df_202503_tripdata)
+head(df_202503_tripdata)
+colnames(df_202503_tripdata)
+```
+### **3. Processing the Data**
+ 
+
+```{r}
+# The 12 datasets are then merged into a single data table.
+
+Divvy_12_Months_data <- bind_rows(df_202404_tripdata, df_202405_tripdata, df_202406_tripdata,
+                                  df_202407_tripdata, df_202408_tripdata, df_202409_tripdata, 
+                                  df_202410_tripdata, df_202411_tripdata, df_202412_tripdata,
+                                  df_202501_tripdata, df_202502_tripdata, df_202503_tripdata)
+```
+
+#### **Renamed a column to ensure easy reading.**
+
+```{r}
+# Rename the column member_casual to rider_type as this makes it more readable
+
+Divvy_12_Months_data <- Divvy_12_Months_data %>% 
+  rename(rider_type = member_casual)
+```
+
+#### **Created 4 new columns to allow for easier access to information needed for the analysis.(ride_length, day_of_the_week, month, date)**
+
+```{r}
+
+  
+# 1. ride length" in minutes to determine how long riders use the bikes for and a column for day of the week
+
+Divvy_12_Months_data <- Divvy_12_Months_data %>% 
+  mutate(
+    ride_length = as.numeric(difftime(ended_at, started_at, units = "mins")),
+    day_of_week = wday(started_at,label = TRUE, abbr = FALSE) # this create the full name of the day of the week
+  )
+
+  # 2. creating a month and date column to help with seasonal trends
+
+Divvy_12_Months_data <- Divvy_12_Months_data %>% 
+  mutate(month = month(started_at, label = TRUE, abbr = FALSE))
+Divvy_12_Months_data <- Divvy_12_Months_data %>%  
+  mutate(date = as.Date(started_at))
+```
+
+#### **Cleaning data**
+
+some fields were filtered out. These include :
+
+```{r}
+#Rides with negative ride length and rides over 24 hours
+Divvy_12_Months_data <- Divvy_12_Months_data %>% 
+  filter(ride_length > 0, ride_length < 1440) %>% 
+  drop_na() 
+
+# this keeps the rides between 1 minute and 24 hrs
+
+```
+
+```{r}
+# Removing duplicate rows
+Divvy_12_Months_data <- distinct(Divvy_12_Months_data)
+# removing rows will null value
+
+Divvy_12_Months_data <- na.omit(Divvy_12_Months_data)
+```
+
+### **4. Data Analysis**
+
+The analysis focuses on identifying key differences in ride behavior between **casual riders** and **annual members** across four main dimensions:  
+- Ride length  
+- Day-of-week usage  
+- Ride duration by day  
+- Monthly trends  
+
+#### **Ride Length Summary**
+
+```{r}
+# Summary statistics for ride length (average, median, max and min ride length)
+
+Divvy_12_Months_data %>% 
+  group_by(rider_type) %>% 
+  summarize(
+    `Mean Ride Length` = round(mean(ride_length), 2),
+    `Median Ride Length` = round(median(ride_length), 2),
+    `Max Ride Length` = round(max(ride_length), 2),
+    `Min Ride Length` = round(min(ride_length), 2),
+    .groups = "drop"
+  ) %>%
+  rename(`Rider Type` = rider_type) %>%
+  kable(
+    caption = "Summary Statistics for Ride Length by Rider Type",
+    align = "lcccc"
+  )
+```
+**Summary**
+
+Casual riders have significantly **longer average and median ride durations** than members.  
+
+Both groups include rides up to 24 hours, likely due to **return errors or outliers**, but casual riders consistently average longer durations.  
+
+This suggests **casual riders are more leisure-oriented**, while **members use the service more efficiently**, likely for commuting or daily errands.
+
+
+
+####  **Ride Frequency by Day of Week**
+
+```{r}
+# How ride behaviours change during the week
+Divvy_12_Months_data %>% 
+  group_by(rider_type, day_of_week) %>% 
+  summarize(number_of_rides = n()) %>% 
+ # arrange(rider_type, day_of_week) %>% 
+  pivot_wider(
+    names_from = rider_type,
+    values_from = number_of_rides
+  ) %>%
+  rename(
+    Day = day_of_week,
+    `Casual Rider` = casual,
+    `Member Rider` = member
+  ) %>%
+  kable(
+    caption = "Ride Frequency By Day of the Week",
+    col.names = c("Day", "Casual Riders", "Member Riders"),
+    align = "lcc"
+  )
+  
+```
+
+- **Members ride more frequently on weekdays**, peaking midweek (Wednesday).  
+- **Casual riders are most active on weekends**, especially Saturdays.  
+
+This supports the hypothesis that **members ride for commuting**, while **casual riders use bikes more for recreation or tourism**.
+
+---
+
+#### **Average Ride Duration by Day of Week**
+
+```{r}
+# Average ride length per day
+
+# Generate table
+Divvy_12_Months_data %>%
+  group_by(rider_type, day_of_week) %>%
+  summarize(average_ride_length = mean(ride_length), .groups = "drop") %>%
+  mutate(average_ride_length = round(average_ride_length, 1)) %>%
+  pivot_wider(
+    names_from = rider_type,
+    values_from = average_ride_length
+  ) %>%
+  rename(
+    Day = day_of_week,
+    `Casual Rider` = casual,
+    `Member Rider` = member
+  ) %>%
+  kable(
+    caption = "Average Ride Length by Day (in minutes)",
+    col.names = c("Day", "Casual Riders (Avg min)", "Member Riders (Avg Min)"),
+    align = "lcc"
+  )
+```
+
+
+- Casual riders consistently spend nearly **twice as long per ride** on all days.  
+- **Weekend rides are longest for both**, especially for casuals (27+ minutes).  
+- Members maintain **short, stable ride durations** — reinforcing commuter use.
+
+---
+
+####  **Monthly Ride Patterns**
+
+```{r}
+# Seasonal trends
+
+Divvy_12_Months_data %>% 
+  group_by(rider_type, month) %>% 
+  summarize(number_of_rides = n(), .groups = "drop") %>% 
+  pivot_wider(
+    names_from = rider_type,
+    values_from = number_of_rides
+  ) %>%
+  rename(
+    Month = month,
+    `Casual Rider` = casual,
+    `Member Rider` = member
+  ) %>%
+  kable(
+    caption = "Monthly Ride Counts by Rider Type",
+    col.names = c("Month", "Casual Rider", "Member Rider"),
+    align = "lcc"
+  )
+```
+
+
+####  **Casual Riders**  
+- Peaks in **July (231,963)** and **August (228,502)**  
+- Lowest in **January (17,090)** and **February (19,631)**  
+
+####  **Members**  
+- Peaks in **September (320,853)** and **August (312,803)**  
+- Still strong in **January (84,121)** and **February (89,945)**  
+
+**Insights**:
+- Casual usage is **highly seasonal**, with steep summer peaks.  
+- Member usage is **more consistent year-round**, supporting regular, utility-driven behavior.  
+- This reinforces the idea that **membership is better suited to frequent, all-weather users**.
+
+---
+
+####  **Key Behavioral Differences**
+
+| Category             | Casual Riders             | Members                    |
+|----------------------|---------------------------|----------------------------|
+| Purpose              | Leisure, tourism          | Commuting, errands         |
+| Ride duration        | Longer (avg. 23.8 min)    | Shorter (avg. 12.4 min)    |
+| Ride frequency       | High on weekends          | High on weekdays           |
+| Seasonality          | Summer peak, winter drop  | Year-round, steady         |
+| Day with most rides  | Saturday (316,461)        | Wednesday (424,492)        |
+
+---
+### **5. Sharing the Data through visualization** 
+
+#### **Plotting the charts**
+
+```{r}
+
+#order the days of the week ensuring the days are listed in order from Sunday to Saturday
+
+day_order <- c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+
+# Number of rides by day of the week
+####
+ride_by_weekday <- Divvy_12_Months_data %>% 
+  mutate(day_of_week = factor(day_of_week, levels = day_order)) %>% 
+  group_by(rider_type, day_of_week) %>% 
+  summarise(number_of_rides = n(), .groups = "drop") %>% 
+  ggplot(aes(x = day_of_week, y = number_of_rides, fill = rider_type)) +
+  geom_col(position = position_dodge(width = 0.9)) +
+  geom_text(
+    aes(label = comma(number_of_rides)),
+    position = position_dodge(width = 0.9),
+    vjust = -0.5,
+    size = 3
+  ) +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "Number of Rides by Weekday",
+    x = "Day of Week",
+    y = "Number of Rides",
+    fill = "Member Type"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5),
+    plot.caption = element_text(hjust = 0.5),
+    legend.position = "top",
+    legend.justification = "center",
+    axis.text.x = element_text(angle = 0, hjust = 1))
+# Display the plot
+ride_by_weekday
+```
+
+#### **Average ride length by day of the week**
+```{r}
+#average ride length by day of the week
+#####
+Avg_ride_length_by_weekday <- Divvy_12_Months_data %>% 
+  mutate(day_of_week = factor(day_of_week, levels = day_order)) %>%
+  group_by(rider_type, day_of_week) %>% 
+  summarise(average_ride_length = mean(ride_length), .groups = "drop") %>% 
+  ggplot(aes(x = day_of_week, y = average_ride_length, fill = rider_type)) +
+  geom_col(position = position_dodge(width = 0.9)) +
+  geom_text(
+    aes(label = round(average_ride_length, 1)),  # or use comma(average_ride_length)
+    position = position_dodge(width = 0.9),
+    vjust = -0.5,
+    size = 3
+  ) +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "Average Ride Length by Weekday",
+    x = "Day of the Week",
+    y = "Average Ride Length (min)",
+    fill = "Member Type"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5),
+    plot.caption = element_text(hjust = 0.5),
+    legend.position = "top",
+    legend.justification = "center",
+    axis.text.x = element_text(angle = 0, hjust = 1))
+# Display the plot
+Avg_ride_length_by_weekday
+```
+
+#### **Number of rides by types of bike**
+```{r}
+#Number of rides by types of bike
+####
+rides_by_type_of_bike <- Divvy_12_Months_data %>% 
+  group_by(rider_type, rideable_type) %>% 
+  summarise(number_of_rides = n(), .groups = "drop") %>% 
+  ggplot(aes(x = rideable_type, y = number_of_rides, fill = rider_type)) +
+  geom_col(position = position_dodge(width = 0.9)) +
+  geom_text(
+    aes(label = comma(number_of_rides)),
+    position = position_dodge(width = 0.9),
+    vjust = -0.5,
+    size = 3
+  ) +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "Bike Type Usage by Rider Type",
+    x = "Bike Type",
+    y = "Number of Rides",
+    fill = "Member Type"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5),
+    plot.caption = element_text(hjust = 0.5),
+    legend.position = "top",
+    legend.justification = "center",
+    axis.text.x = element_text(angle = 0, hjust = 1))
+# Display the plot
+rides_by_type_of_bike
+```
+
+#### **Rides per month by rider type**
+
+```{r}
+# defining the month order
+
+month_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September",
+"October", "November", "December")
+
+#Rides per month by rider type
+###
+rides_per_month_by_ridertype <- Divvy_12_Months_data %>%
+  mutate(month = factor(month, levels = month_order)) %>% 
+  group_by(rider_type, month) %>% 
+  summarise(number_of_rides = n(), .groups = "drop") %>% 
+  ggplot(aes(x = month, y = number_of_rides, fill = rider_type)) +
+  geom_col(position = position_dodge(width = 0.9)) +
+  geom_text(
+    aes(label = comma(number_of_rides)),
+    position = position_dodge(width = 0.9),
+    vjust = -0.5,
+    size = 3
+  ) +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "Number of Rides per Month By Ridertype",
+    x = "Month",
+    y = "Number of Rides",
+    fill = "Rider Type"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5),
+    plot.caption = element_text(hjust = 0.5),
+    legend.position = "top",
+    legend.justification = "center",
+    axis.text.x = element_text(angle = 45, hjust = 1))
+# Display the plot
+rides_per_month_by_ridertype
+```
+
+#### **Top 10 Peak Usage Days for Casual Riders**
+
+```{r}
+# Step 1: Get daily ride counts for casual riders
+casual_daily_counts <- Divvy_12_Months_data %>%
+  filter(rider_type == "casual") %>%
+  group_by(date) %>%
+  summarise(rides = n(), .groups = "drop")
+
+# Step 2: Get top 10 highest-usage days
+top_10_dates <- casual_daily_counts %>%
+  arrange(desc(rides)) %>%
+  slice_head(n = 10) %>%
+  mutate(date_label = format(date, "%B %d, %Y"))  # for cleaner x-axis labels
+
+# Step 3: Bar chart with labels and rotated x-axis
+ggplot(top_10_dates, aes(x = reorder(date_label, -rides), y = rides)) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = scales::comma(rides)),
+    vjust = -0.5,
+    size = 3
+  ) +
+  labs(
+    title = "Top 10 Peak Usage Days for Casual Riders",
+    x = "Date of Rides",
+    y = "Number of Rides"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold")
+  )
+```
+
+### **6. Acting on the findings of the analysis**
+
+#### **Recommendations**
+
+Based on the analysis, I am recommending three actionable strategies
+
+**1. Target casual riders with weekday commuter incentives**
+Insight: Casual riders take longer rides mostly on weekends, while members ride shorter distances but more consistently on  weekdays.
+
+  - Promote the time and cost savings of membership for daily use.
+  - Launch campaigns encouraging casual riders to try weekday commuting
+  
+**2. Offer seasonal promotions or loyalty discounts to casual riders**
+Insight: Casual ridership spikes in summer months between June and September, while members ride more evenly year round.
+  - Especially during the months when casual ridership is highest.
+  - Tailor messages around recreational convenience plus long-term savings.
+  
+**3. Highlight the value of membership through rideable type Access and cost**
+Insight: Casual riders use electric and docked bikes more often, which incur higher per ride cost
+  - Promote the financial benefits of becoming a member
+
+#### **Conclusion**:  
+There are clear behavioral distinctions between casual and member riders. Members show consistent, short-duration, weekday usage — typical of commuter habits. Casual riders exhibit longer, leisure-style rides that spike on weekends and in summer. These insights provide a strong foundation for marketing strategies targeting casual-to-member conversion.
+
